@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraction Kitten Popper 🐱</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #87CEEB;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #ui-bar {
+            background-color: rgba(255, 255, 255, 0.95);
+            width: 100%;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 { margin: 0; color: #333; font-size: 26px; }
+        
+        #instruction {
+            font-size: 24px;
+            font-weight: bold;
+            color: #d32f2f;
+            padding: 5px 15px;
+            border-radius: 8px;
+            background-color: #ffebee;
+            transition: transform 0.3s;
+        }
+
+        #score-board {
+            font-size: 22px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        /* Slider Styles */
+        #controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+            color: #333;
+            background: #f0f0f0;
+            padding: 8px 15px;
+            border-radius: 20px;
+        }
+
+        input[type="range"] {
+            cursor: pointer;
+        }
+
+        #game-area {
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - 140px);
+            overflow: hidden;
+        }
+
+        .kitten {
+            position: absolute;
+            bottom: -100px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: floatUp linear forwards;
+            transition: transform 0.1s;
+        }
+
+        .kitten:active {
+            transform: scale(0.8);
+        }
+
+        .cat-emoji {
+            font-size: 65px;
+            line-height: 1;
+            filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.2));
+        }
+
+        .fraction-label {
+            background: white;
+            padding: 6px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 20px;
+            border: 3px solid #333;
+            margin-top: -15px;
+            z-index: 2;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        @keyframes floatUp {
+            0% { bottom: -100px; }
+            100% { bottom: 110vh; }
+        }
+
+        .pop-text {
+            position: absolute;
+            font-weight: bold;
+            font-size: 28px;
+            text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            pointer-events: none;
+            animation: fadeUp 1s ease-out forwards;
+            z-index: 200;
+        }
+
+        @keyframes fadeUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-60px) scale(1.5); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-bar">
+        <div class="header-row">
+            <h1>🐱 Fraction Kitten Popper</h1>
+            <div id="score-board">Score: <span id="score">0</span></div>
+        </div>
+        <div id="instruction">Target: Pop all the Proper Fractions!</div>
+        
+        <!-- Speed Slider -->
+        <div id="controls">
+            <label for="speedSlider">🐢 Slow</label>
+            <input type="range" id="speedSlider" min="1" max="10" value="4">
+            <label for="speedSlider">Fast 🐇</label>
+        </div>
+    </div>
+
+    <div id="game-area"></div>
+
+    <script>
+        const fractions = [
+            // Proper Fractions
+            { text: "1/2", type: "Proper Fraction" },
+            { text: "3/4", type: "Proper Fraction" },
+            { text: "5/8", type: "Proper Fraction" },
+            { text: "2/5", type: "Proper Fraction" },
+            { text: "7/10", type: "Proper Fraction" },
+            // Improper Fractions
+            { text: "5/4", type: "Improper Fraction" },
+            { text: "7/3", type: "Improper Fraction" },
+            { text: "9/2", type: "Improper Fraction" },
+            { text: "8/8", type: "Improper Fraction" },
+            { text: "12/5", type: "Improper Fraction" },
+            // Mixed Numbers
+            { text: "1 1/2", type: "Mixed Number" },
+            { text: "2 3/4", type: "Mixed Number" },
+            { text: "5 1/3", type: "Mixed Number" },
+            { text: "3 4/5", type: "Mixed Number" },
+            { text: "4 7/8", type: "Mixed Number" }
+        ];
+
+        const types = ["Proper Fraction", "Improper Fraction", "Mixed Number"];
+        let currentTarget = "";
+        let score = 0;
+        
+        // Initial speed settings
+        let gameSpeed = 8000; // Animation duration in ms
+        let spawnRate = 2000; // Time between spawns in ms
+        let spawnInterval; // Variable to hold the timer
+
+        const scoreEl = document.getElementById('score');
+        const instructionEl = document.getElementById('instruction');
+        const gameArea = document.getElementById('game-area');
+        const speedSlider = document.getElementById('speedSlider');
+
+        // Handle Slider Changes
+        speedSlider.addEventListener('input', (e) => {
+            const speedLevel = parseInt(e.target.value);
+            // Map level 1 (Slow) to 11000ms duration, level 10 (Fast) to 2000ms duration
+            gameSpeed = 12000 - (speedLevel * 1000); 
+            
+            // Adjust spawn rate proportionally so the screen doesn't get too empty or too full
+            spawnRate = gameSpeed / 4; 
+            
+            // Restart the spawning timer with the new rate
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnKitten, spawnRate);
+        });
+
+        function changeTarget() {
+            currentTarget = types[Math.floor(Math.random() * types.length)];
+            instructionEl.innerText = `Target: Pop all the ${currentTarget}s!`;
+            instructionEl.style.transform = "scale(1.1)";
+            setTimeout(() => { instructionEl.style.transform = "scale(1)"; }, 300);
+        }
+
+        function spawnKitten() {
+            const kitten = document.createElement('div');
+            kitten.className = 'kitten';
+            
+            kitten.style.left = Math.floor(Math.random() * 80 + 10) + 'vw';
+            // Apply current game speed
+            kitten.style.animationDuration = (Math.random() * 1000 + gameSpeed) + 'ms';
+
+            const frac = fractions[Math.floor(Math.random() * fractions.length)];
+            
+            kitten.innerHTML = `
+                <div class="cat-emoji">🐱</div>
+                <div class="fraction-label">${frac.text}</div>
+            `;
+
+            kitten.onclick = function(e) {
+                if (frac.type === currentTarget) {
+                    score += 10;
+                    showPopEffect("Correct! +10", e.clientX, e.clientY, "#4CAF50");
+                } else {
+                    score -= 5;
+                    showPopEffect("Oops! -5", e.clientX, e.clientY, "#FF5252");
+                }
+                scoreEl.innerText = score;
+                kitten.remove();
+            };
+
+            kitten.addEventListener('animationend', () => {
+                kitten.remove();
+            });
+
+            gameArea.appendChild(kitten);
+        }
+
+        function showPopEffect(text, x, y, color) {
+            const pop = document.createElement('div');
+            pop.className = 'pop-text';
+            pop.innerText = text;
+            pop.style.left = x + 'px';
+            pop.style.top = y + 'px';
+            pop.style.color = color;
+            document.body.appendChild(pop);
+            
+            setTimeout(() => pop.remove(), 1000);
+        }
+
+        // Initialize Game
+        changeTarget();
+        setInterval(changeTarget, 20000); // Change target every 20 seconds
+        
+        // Start spawning
+        spawnInterval = setInterval(spawnKitten, spawnRate);
+
+        // Trigger the slider once to set initial synced values
+        speedSlider.dispatchEvent(new Event('input'));
+    </script>
+</body>
+</html>
